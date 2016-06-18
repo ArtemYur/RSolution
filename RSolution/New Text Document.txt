@@ -1,0 +1,156 @@
+Sys.setenv(JAVA_HOME="C:/Program Files (x86)/Java/jdk1.7.0_55/jre")
+Sys.setenv(JAVA_HOME="C:/Program Files/Java/jre1.8.0_73")
+
+source("D:/Diploma/R/PCA_script.R")
+install.packages('rgl')
+
+source("D:/Diploma/R/RSolution/RSolution/DensityClustering/densityClustering.R")
+source("D:/Diploma/R/executeDCA.R")
+
+dbscan
+install.packages('dbscan')
+
+library(shiny)
+runApp("server")
+runApp("uploadFile")
+runApp("downloadDataApp")
+runApp("WebApplication")
+
+
+runApp("Plot3d")
+
+
+	
+
+KMO_measure <- function(data) {
+	#performing the PCA using the princomp command
+	pca <- princomp(data, cor=T)
+
+	#proportion of explained variance of the factors
+	part.pca <- pca$sdev^2/sum(pca$sdev^2)*100
+	print("part.pca")
+	print(part.pca)
+
+	print("cumsum(part.pca)")
+	print(cumsum(part.pca))
+
+	#graphical representation
+	#biplot(pca)
+
+	#correlation matrix
+	R <- cor(data)
+	print("R")
+	print(R)
+	
+	#inverse of the correlation matrix
+	invR <- solve(R)
+
+	#partial correlation matrix (-1 * spss anti-image matrix, unless the   diagonal)
+	A <- matrix(1,nrow(invR),ncol(invR))
+	for (i in 1:nrow(invR)){
+	 for (j in (i+1):ncol(invR)){
+	  if(j <= ncol(invR)) {
+	   #above the diagonal
+	   A[i,j] <- -invR[i,j]/sqrt(invR[i,i]*invR[j,j])
+	   #below the diagonal
+	   A[j,i] <- A[i,j]
+	  } else {
+	   print("Stupid R", quote=FALSE)
+	   print(i)
+	   print(j)
+	  } 
+	 }
+	}
+
+	colnames(A) <- colnames(data)
+	rownames(A) <- colnames(data)
+	#Partial correlation matrix
+	print("Partial correlation matrix")
+	print(A)
+
+	#Overall KMO index
+	kmo.num <- sum(R^2) - sum(diag(R^2))
+	kmo.denom <- kmo.num + (sum(A^2) - sum(diag(A^2)))
+	kmo <- kmo.num/kmo.denom
+	print("kmo")
+
+	print(kmo)
+
+	#KMO per variable (diagonal of the spss anti-image matrix)
+	print("KMO per variable")
+	for (j in 1:ncol(data)){
+	 kmo_j.num <- sum(R[,j]^2) - R[j,j]^2
+	 kmo_j.denom <- kmo_j.num + (sum(A[,j]^2) - A[j,j]^2)
+	 kmo_j <- kmo_j.num/kmo_j.denom
+	 print(paste(colnames(data)[j],"=",kmo_j))
+	}
+	return(kmo);
+}
+
+
+factorsAnalyze <- function(data, measureType="nkaiser", score="regression", rotaion="varimax") {
+	library(nFactors)
+	ev <- eigen(cor(data)) # get eigenvalues
+	ap <- parallel(subject=nrow(data),var=ncol(data), rep=100,cent=.05)
+	nS <- nScree(x=ev$values, aparallel=ap$eigen$qevpea)
+
+	# Maximum Likelihood Factor Analysis
+	# entering raw data and extracting 3 factors, 
+	# with varimax rotation 
+	# nS$Components has {$noc, $naf, $npar, $nkaiser, ...}
+	# scores = c("none", "regression", "Bartlett")
+
+	fit <- factanal(data, attr(nS$Components, nkaiser), scores = c(score),rotation=rotaion)
+
+	#print(fit, digits=2, cutoff=.3, sort=TRUE)
+	# plot factor 1 by factor 2 
+	#load <- fit$loadings[,1:2] 
+	#plot(load,type="n") # set up plot 
+	#text(load,labels=names(data),cex=.7) # add variable names
+	return(fit$scores);
+}
+
+kNN <- function(data, nclust=NULL) {
+	library(dbscan)
+	
+	if(nclust==NULL) {
+		nclust = ncol(data) + 1
+	}
+	kNNdistplot(data, nclust)
+	eps <- readline(prompt="Enter value for eps: ")
+	return(as.numeric(eps))
+}
+
+dbscanImp <- function(data, nclust=NULL) {
+	library(dbscan)
+	
+	if(nclust==NULL) {
+		nclust = ncol(data) + 1
+	}
+	#kNNdistplot(data, nclust)
+
+	db = dbscan(data, 0.5, nclust)
+	#print(db$cluster)
+
+	library(rgl)
+	plot3d(data, col=db$cluster+1L)
+	return(db$cluster)
+}
+
+
+library(nFactors)
+ev <- eigen(cor(data)) # get eigenvalues
+ap <- parallel(subject=nrow(data),var=ncol(data),
+  rep=100,cent=.05)
+nS <- nScree(x=ev$values, aparallel=ap$eigen$qevpea)
+
+# Maximum Likelihood Factor Analysis
+# entering raw data and extracting 3 factors, 
+# with varimax rotation 
+fit <- factanal(data, nS$Components$nkaiser, scores = c("regression"),rotation="varimax")
+
+#print(fit, digits=2, cutoff=.3, sort=TRUE)
+# plot factor 1 by factor 2 
+#load <- fit$loadings[,1:2] 
+#plot(load,type="n") # set up plot 
+#text(load,labels=names(data),cex=.7) # add variable names
